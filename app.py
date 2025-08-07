@@ -1,9 +1,8 @@
 """Logo Detection App using Streamlit, YOLOv8, and OpenCV.
 
-This application allows users to upload or select images/videos from sample folders,
-runs a YOLOv8 model to detect logos, and displays per-frame and per-video counts.
-
-
+Allows upload/search for images/videos, displays the original
+media, runs YOLOv8 detection, and displays per-frame and
+total video logo counts.
 """
 
 import streamlit as st
@@ -15,19 +14,10 @@ from ultralytics import YOLO
 import tempfile
 from typing import List, Dict, Tuple, Optional
 
-
 def get_logo_counts(
     results, class_names: List[str]
 ) -> Dict[str, int]:
-    """Counts logos detected per frame.
-
-    Args:
-        results: List of YOLO results for a frame.
-        class_names: List of class names from the YOLO model.
-
-    Returns:
-        Dictionary mapping logo class names to counts.
-    """
+    """Counts logos detected per frame."""
     if not results:
         return {}
     r = results[0]
@@ -38,42 +28,21 @@ def get_logo_counts(
     logo_counts = {class_names[i]: c for i, c in zip(unique, counts)}
     return logo_counts
 
-
 def get_fps_and_length(
     cap: cv2.VideoCapture
 ) -> Tuple[float, int]:
-    """Extracts FPS and total frame count from a video.
-
-    Args:
-        cap: OpenCV video capture object.
-
-    Returns:
-        fps: Frames per second (default 25 if not found).
-        length: Total frame count.
-    """
+    """Extracts FPS and total frame count from a video."""
     fps = cap.get(cv2.CAP_PROP_FPS)
     length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     return fps if fps > 0 else 25, length
-
 
 def process_video_per_second_and_total(
     video_path: str,
     model: YOLO,
     class_names: List[str],
-    stframe,
+    stframe
 ) -> Tuple[List[Tuple[int, Dict[str, int]]], Dict[str, int]]:
-    """Processes a video, runs detection every second, aggregates results.
-
-    Args:
-        video_path: Path to the video file.
-        model: YOLO model object.
-        class_names: List of logo class names.
-        stframe: Streamlit placeholder for displaying results.
-
-    Returns:
-        results_by_second: List of (second, {logo: count}) tuples.
-        total_logo_counts: Dict of total logo counts over the entire video.
-    """
+    """Processes a video, runs detection every second, aggregates results."""
     cap = cv2.VideoCapture(video_path)
     fps, total_frames = get_fps_and_length(cap)
     results_by_second = []
@@ -107,16 +76,14 @@ def process_video_per_second_and_total(
         total_logo_counts = {class_names[i]: c for i, c in zip(unique, counts)}
     return results_by_second, total_logo_counts
 
-
 def main():
     """Main entry point for the Streamlit logo detection application."""
-
     # --- Load trained model ---
-    model = YOLO(r'D:\Detect\content\runs\detect\train\weights\best.pt')  # Update path if needed
+    model = YOLO(r'content\runs\detect\train\weights\best.pt')  # UPDATE AS NEEDED
 
     # --- Folder paths for search mode ---
-    PHOTO_FOLDER = r"sample_files\photos"
-    VIDEO_FOLDER = r"sample_files\videos"
+    PHOTO_FOLDER = r"sample_photos"    # UPDATE AS NEEDED
+    VIDEO_FOLDER = r"sample_videos"    # UPDATE AS NEEDED
 
     # --- Streamlit UI setup ---
     st.set_page_config(page_title="Logo Detection App", layout="centered")
@@ -125,7 +92,6 @@ def main():
 
     input_mode = st.radio("Choose Input Method", ["Upload", "Search"])
     file_type = st.radio("Select File Type", ["Image", "Video"])
-
     selected_file_path: Optional[str] = None
 
     # --------------------- UPLOAD MODE ---------------------
@@ -135,7 +101,6 @@ def main():
             if uploaded_file:
                 img = Image.open(uploaded_file)
                 st.image(img, caption="Uploaded Image", use_container_width=True)
-
                 if st.button("Detect Logos"):
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp:
                         img.save(temp.name)
@@ -156,7 +121,6 @@ def main():
             if uploaded_video:
                 tfile = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
                 tfile.write(uploaded_video.read())
-
                 if st.button("Detect Logos in Video (1 FPS)"):
                     stframe = st.empty()
                     results_by_second, total_logo_counts = process_video_per_second_and_total(
@@ -164,11 +128,11 @@ def main():
                     st.subheader("Logos Detected Per Second")
                     for sec, logo_counts in results_by_second:
                         if logo_counts:
-                            st.write(f"*Second {sec}:*")
+                            st.write(f"Second {sec}:")
                             for name, count in logo_counts.items():
                                 st.write(f"- {name}: {count}")
                         else:
-                            st.write(f"*Second {sec}:* No logos detected.")
+                            st.write(f"Second {sec}: No logos detected.")
                     st.divider()
                     st.subheader("Total Logos Detected in Video")
                     if total_logo_counts:
@@ -185,12 +149,10 @@ def main():
             except FileNotFoundError:
                 image_files = []
             selected_filename = st.selectbox("Select an image", image_files)
-
             if selected_filename:
                 selected_file_path = os.path.join(PHOTO_FOLDER, selected_filename)
                 img = Image.open(selected_file_path)
                 st.image(img, caption="Selected Image", use_container_width=True)
-
                 if st.button("Detect Logos"):
                     results = model(selected_file_path)
                     for r in results:
@@ -210,9 +172,12 @@ def main():
             except FileNotFoundError:
                 video_files = []
             selected_filename = st.selectbox("Select a video", video_files)
-
             if selected_filename:
                 selected_file_path = os.path.join(VIDEO_FOLDER, selected_filename)
+                # --- Display the original video, before detection ---
+                with open(selected_file_path, "rb") as video_file:
+                    video_bytes = video_file.read()
+                    st.video(video_bytes, format="video/mp4", start_time=0)
 
                 if st.button("Detect Logos in Video (1 FPS)"):
                     stframe = st.empty()
@@ -221,11 +186,11 @@ def main():
                     st.subheader("Logos Detected Per Second")
                     for sec, logo_counts in results_by_second:
                         if logo_counts:
-                            st.write(f"*Second {sec}:*")
+                            st.write(f"Second {sec}:")
                             for name, count in logo_counts.items():
                                 st.write(f"- {name}: {count}")
                         else:
-                            st.write(f"*Second {sec}:* No logos detected.")
+                            st.write(f"Second {sec}: No logos detected.")
                     st.divider()
                     st.subheader("Total Logos Detected in Video")
                     if total_logo_counts:
@@ -234,7 +199,5 @@ def main():
                     else:
                         st.info("No logos detected in entire video.")
 
-
-if __name__ == "__main__":
-
+if _name_ == "_main_":
     main()
